@@ -204,6 +204,7 @@ hr { border-color: #252834 !important; }
 DATA_DIR = "data"
 PROFILE_FILE = os.path.join(DATA_DIR, "profiles.json")
 CHAT_FILE    = os.path.join(DATA_DIR, "chats.json")
+CHECKLIST_FILE = os.path.join(DATA_DIR, "checklists.json")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 def load_json(file):
@@ -216,8 +217,9 @@ def save_json(file, data):
     with open(file, "w") as f:
         json.dump(data, f, indent=4)
 
-profiles = load_json(PROFILE_FILE)
-chats    = load_json(CHAT_FILE)
+profiles  = load_json(PROFILE_FILE)
+chats     = load_json(CHAT_FILE)
+checklists = load_json(CHECKLIST_FILE)
 
 # ─────────────────────────────────────────────
 # AUTH HELPERS
@@ -797,6 +799,403 @@ def ai_response(user_msg: str, prediction: dict | None, academic: dict) -> str:
 _startup_model, _startup_scaler = load_or_train_model()
 
 # ═══════════════════════════════════════════════════════════
+# ── NEW FEATURE 1: UNIVERSITY COMPARISON DATABASE ──
+# ═══════════════════════════════════════════════════════════
+UNIVERSITY_PROFILES = {
+    "MIT": {"gre": 330, "cgpa": 9.5, "toefl": 113, "acceptance_rate": 4, "research_req": True, "rank": 1},
+    "Stanford": {"gre": 328, "cgpa": 9.3, "toefl": 112, "acceptance_rate": 5, "research_req": True, "rank": 2},
+    "Carnegie Mellon": {"gre": 325, "cgpa": 9.0, "toefl": 110, "acceptance_rate": 10, "research_req": True, "rank": 3},
+    "UC Berkeley": {"gre": 327, "cgpa": 9.2, "toefl": 110, "acceptance_rate": 7, "research_req": True, "rank": 4},
+    "Georgia Tech": {"gre": 320, "cgpa": 8.7, "toefl": 105, "acceptance_rate": 18, "research_req": False, "rank": 5},
+    "UCLA": {"gre": 319, "cgpa": 8.8, "toefl": 106, "acceptance_rate": 16, "research_req": False, "rank": 6},
+    "University of Michigan": {"gre": 318, "cgpa": 8.6, "toefl": 104, "acceptance_rate": 20, "research_req": False, "rank": 7},
+    "Columbia": {"gre": 322, "cgpa": 8.9, "toefl": 108, "acceptance_rate": 12, "research_req": False, "rank": 8},
+    "NYU": {"gre": 315, "cgpa": 8.5, "toefl": 105, "acceptance_rate": 22, "research_req": False, "rank": 10},
+    "Purdue": {"gre": 314, "cgpa": 8.2, "toefl": 100, "acceptance_rate": 28, "research_req": False, "rank": 12},
+    "UC San Diego": {"gre": 316, "cgpa": 8.4, "toefl": 103, "acceptance_rate": 24, "research_req": False, "rank": 11},
+    "Northeastern": {"gre": 310, "cgpa": 8.0, "toefl": 98, "acceptance_rate": 35, "research_req": False, "rank": 18},
+    "ASU": {"gre": 307, "cgpa": 7.8, "toefl": 95, "acceptance_rate": 48, "research_req": False, "rank": 25},
+    "UT Dallas": {"gre": 308, "cgpa": 7.9, "toefl": 96, "acceptance_rate": 45, "research_req": False, "rank": 23},
+    "Texas A&M": {"gre": 312, "cgpa": 8.1, "toefl": 99, "acceptance_rate": 32, "research_req": False, "rank": 15},
+    "Penn State": {"gre": 311, "cgpa": 8.0, "toefl": 98, "acceptance_rate": 33, "research_req": False, "rank": 16},
+    "Johns Hopkins": {"gre": 323, "cgpa": 9.0, "toefl": 109, "acceptance_rate": 11, "research_req": True, "rank": 9},
+    "Caltech": {"gre": 331, "cgpa": 9.6, "toefl": 114, "acceptance_rate": 3, "research_req": True, "rank": 1},
+    "SUNY Buffalo": {"gre": 304, "cgpa": 7.5, "toefl": 92, "acceptance_rate": 58, "research_req": False, "rank": 32},
+    "Indiana University": {"gre": 306, "cgpa": 7.7, "toefl": 93, "acceptance_rate": 52, "research_req": False, "rank": 28},
+}
+
+def compare_university(uni_name: str, gre: float, cgpa: float, toefl: float, research: int) -> dict | None:
+    key = None
+    for k in UNIVERSITY_PROFILES:
+        if k.lower() in uni_name.lower() or uni_name.lower() in k.lower():
+            key = k
+            break
+    if not key:
+        return None
+
+    uni = UNIVERSITY_PROFILES[key]
+    gre_gap   = gre   - uni["gre"]
+    cgpa_gap  = round(cgpa - uni["cgpa"], 2)
+    toefl_gap = toefl - uni["toefl"]
+
+    gre_strength   = min(100, max(0, int((gre   / uni["gre"])   * 80)))
+    cgpa_strength  = min(100, max(0, int((cgpa  / uni["cgpa"])  * 80)))
+    toefl_strength = min(100, max(0, int((toefl / uni["toefl"]) * 80)))
+
+    avg_gap = (gre_gap + cgpa_gap * 5 + toefl_gap * 0.5) / 3
+    if avg_gap >= 0 and (research == 1 or not uni["research_req"]):
+        verdict = ("Strong Match ✅", "#5cb85c")
+    elif avg_gap >= -5:
+        verdict = ("Borderline — Apply ⚡", "#c9a84c")
+    elif avg_gap >= -12:
+        verdict = ("Reach School 🎯", "#e8963a")
+    else:
+        verdict = ("Significant Gap ⚠️", "#d9534f")
+
+    return {
+        "name": key,
+        "rank": uni["rank"],
+        "acceptance_rate": uni["acceptance_rate"],
+        "research_req": uni["research_req"],
+        "gre_gap": gre_gap,
+        "cgpa_gap": cgpa_gap,
+        "toefl_gap": toefl_gap,
+        "gre_avg": uni["gre"],
+        "cgpa_avg": uni["cgpa"],
+        "toefl_avg": uni["toefl"],
+        "gre_strength": gre_strength,
+        "cgpa_strength": cgpa_strength,
+        "toefl_strength": toefl_strength,
+        "verdict": verdict[0],
+        "verdict_colour": verdict[1],
+    }
+
+# ═══════════════════════════════════════════════════════════
+# ── NEW FEATURE 3: IMPROVEMENT ROADMAP GENERATOR ──
+# ═══════════════════════════════════════════════════════════
+def generate_roadmap(gre: float, cgpa: float, toefl: float, sop_lor: float, research: int) -> list[dict]:
+    weeks = []
+    week = 1
+
+    gre_weak   = gre   < 310
+    toefl_weak = toefl < 100
+    sop_weak   = sop_lor < 3
+    res_weak   = research == 0
+
+    if gre_weak:
+        weeks.append({
+            "range": f"Week {week}–{week+2}",
+            "focus": "GRE Quantitative Prep",
+            "icon": "📐",
+            "tasks": [
+                "Complete Khan Academy Algebra & Arithmetic refresher",
+                "Work through Manhattan Prep GRE Quant Strategy Guide (Ch 1–6)",
+                "Do 30 practice problems daily on Magoosh or PowerPrep",
+            ],
+            "goal": f"Raise GRE from {int(gre)} → {min(int(gre)+15, 340)} (target 310+)",
+            "colour": "#d9534f"
+        })
+        week += 3
+        weeks.append({
+            "range": f"Week {week}–{week+1}",
+            "focus": "GRE Verbal & Full Practice Tests",
+            "icon": "📚",
+            "tasks": [
+                "Learn 10 high-frequency GRE vocab words per day",
+                "Take 2 full-length timed practice tests",
+                "Review all wrong answers — identify patterns",
+            ],
+            "goal": "Lock in score gains before test day",
+            "colour": "#e8963a"
+        })
+        week += 2
+
+    if toefl_weak:
+        weeks.append({
+            "range": f"Week {week}–{week+1}",
+            "focus": "TOEFL Score Improvement",
+            "icon": "🗣",
+            "tasks": [
+                "Focus on Writing section: practice integrated + independent tasks daily",
+                "Use ETS Official TOEFL Practice Online (TPO) tests",
+                "Record yourself speaking for 30 min/day and review for fluency",
+            ],
+            "goal": f"Push TOEFL from {int(toefl)} → 100+",
+            "colour": "#d9534f"
+        })
+        week += 2
+
+    if res_weak:
+        weeks.append({
+            "range": f"Week {week}–{week+1}",
+            "focus": "Build Research Experience",
+            "icon": "🔬",
+            "tasks": [
+                "Email 5 professors at your university requesting research assistance",
+                "Start a self-directed project: pick a dataset on Kaggle, define a research question",
+                "Set up a GitHub repo and document your methodology clearly",
+            ],
+            "goal": "Have at least 1 research project to mention in SOP",
+            "colour": "#4a90d9"
+        })
+        week += 2
+
+    if sop_weak:
+        weeks.append({
+            "range": f"Week {week}–{week+1}",
+            "focus": "SOP Drafting & LOR Planning",
+            "icon": "✍️",
+            "tasks": [
+                "Write a 500-word rough SOP draft — focus on your 'why grad school' story",
+                "Identify 3 recommenders and send briefing materials to each",
+                "Research 3 specific faculty members at target schools to name in your SOPs",
+            ],
+            "goal": "First draft SOP complete; LOR requests sent",
+            "colour": "#c9a84c"
+        })
+        week += 2
+        weeks.append({
+            "range": f"Week {week}–{week+1}",
+            "focus": "SOP Refinement & School Research",
+            "icon": "🎯",
+            "tasks": [
+                "Get SOP feedback from a mentor, professor, or writing center",
+                "Tailor SOP for your top 3 schools (name faculty, align with their research)",
+                "Finalize school list: 4 reach, 4 match, 3 safe schools",
+            ],
+            "goal": "Polished, school-specific SOPs ready",
+            "colour": "#c9a84c"
+        })
+        week += 2
+    else:
+        weeks.append({
+            "range": f"Week {week}–{week+1}",
+            "focus": "SOP Polish & School Targeting",
+            "icon": "✍️",
+            "tasks": [
+                "Tailor your SOP for each target school — name specific faculty",
+                "Get feedback on SOP from a professor or mentor",
+                "Finalize your school list (10–12 total across all tiers)",
+            ],
+            "goal": "School-specific, polished SOPs ready",
+            "colour": "#c9a84c"
+        })
+        week += 2
+
+    weeks.append({
+        "range": f"Week {week}–{week+1}",
+        "focus": "Application Submission Sprint",
+        "icon": "🚀",
+        "tasks": [
+            "Complete all online application forms — double-check every field",
+            "Upload transcripts, CV, and any supporting documents",
+            "Confirm LOR submissions with all recommenders (follow up if needed)",
+            "Submit applications 3–5 days before each deadline",
+        ],
+        "goal": "All applications submitted on time",
+        "colour": "#5cb85c"
+    })
+
+    return weeks
+
+# ═══════════════════════════════════════════════════════════
+# ── NEW FEATURE 4: PDF REPORT GENERATOR ──
+# ═══════════════════════════════════════════════════════════
+def generate_pdf_report(username: str, prediction: dict, academic: dict, checklist_data: list | None = None) -> bytes:
+    from io import BytesIO
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                     Table, TableStyle, HRFlowable, PageBreak)
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter,
+                             leftMargin=0.85*inch, rightMargin=0.85*inch,
+                             topMargin=0.85*inch, bottomMargin=0.85*inch)
+
+    GOLD  = colors.HexColor("#c9a84c")
+    DARK  = colors.HexColor("#0d0f14")
+    PANEL = colors.HexColor("#181c26")
+    PANEL2= colors.HexColor("#1c2030")
+    MUTED = colors.HexColor("#6b7080")
+    GREEN = colors.HexColor("#5cb85c")
+    RED   = colors.HexColor("#d9534f")
+    AMBER = colors.HexColor("#e8963a")
+    BLUE  = colors.HexColor("#4a90d9")
+    LIGHT = colors.HexColor("#e8e4dc")
+    ACC   = colors.HexColor("#1a1f2e")
+    BORDER= colors.HexColor("#252834")
+
+    base = getSampleStyleSheet()["Normal"]
+
+    def S(name, **kw):
+        return ParagraphStyle(name, parent=base, **kw)
+
+    h1    = S("h1", fontSize=26, textColor=GOLD, fontName="Helvetica-Bold", spaceAfter=4, alignment=TA_CENTER)
+    sub   = S("sub", fontSize=10, textColor=MUTED, alignment=TA_CENTER, spaceAfter=2)
+    h2    = S("h2", fontSize=14, textColor=LIGHT, fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=6)
+    body  = S("body", fontSize=9.5, textColor=LIGHT, leading=14, spaceAfter=3)
+    small = S("small", fontSize=8.5, textColor=MUTED, leading=13)
+    tip   = S("tip", fontSize=9, textColor=colors.HexColor("#c8b87a"), leading=13, spaceAfter=3)
+    lbl   = S("lbl", fontSize=8.5, textColor=MUTED, fontName="Helvetica-Bold")
+    val   = S("val", fontSize=10, textColor=LIGHT, fontName="Helvetica-Bold")
+    foot  = S("foot", fontSize=7.5, textColor=MUTED, alignment=TA_CENTER)
+
+    story = []
+    W = 6.3 * inch
+
+    # ── Header ──
+    story += [
+        Spacer(1, 0.1*inch),
+        Paragraph("GradPath AI", h1),
+        Paragraph("Graduate Admission Intelligence Report", sub),
+        Paragraph(f"Prepared for: {username}  ·  {datetime.date.today().strftime('%B %d, %Y')}", sub),
+        HRFlowable(width=W, thickness=1.5, color=GOLD, spaceAfter=12, spaceBefore=6),
+    ]
+
+    # ── Score banner ──
+    pct  = prediction["probability"]
+    band = prediction["band"]
+    bc   = {"High": GREEN, "Moderate": GOLD, "Low-Moderate": AMBER, "Low": RED}.get(band, GOLD)
+
+    banner = Table([[
+        Paragraph(f"{pct}%", S("pct", fontSize=36, textColor=GOLD, fontName="Helvetica-Bold", alignment=TA_CENTER)),
+        Paragraph(f"<b>{band} Chance</b><br/>Predicted Acceptance Probability",
+                  S("bnd", fontSize=11, textColor=bc, leading=16)),
+    ]], colWidths=[2*inch, 4.3*inch])
+    banner.setStyle(TableStyle([
+        ("BACKGROUND",   (0,0),(-1,-1), PANEL),
+        ("BOX",          (0,0),(-1,-1), 1.5, GOLD),
+        ("VALIGN",       (0,0),(-1,-1), "MIDDLE"),
+        ("LEFTPADDING",  (0,0),(-1,-1), 16),
+        ("RIGHTPADDING", (0,0),(-1,-1), 16),
+        ("TOPPADDING",   (0,0),(-1,-1), 14),
+        ("BOTTOMPADDING",(0,0),(-1,-1), 14),
+    ]))
+    story += [banner, Spacer(1, 12)]
+
+    # ── Academic profile ──
+    story.append(Paragraph("Academic Profile", h2))
+    fields = [
+        ("GRE Score",        str(academic.get("gre",  "—"))),
+        ("CGPA",             f"{academic.get('cgpa','—')} / 10"),
+        ("TOEFL Score",      str(academic.get("toefl","—"))),
+        ("SOP / LOR Rating", f"{academic.get('sop_lor','—')} / 5"),
+        ("Research",         "Yes" if academic.get("research", 0) else "No"),
+        ("Uni Rating",       f"{academic.get('uni_rating','—')} / 5"),
+    ]
+    pt = Table([[Paragraph(l, lbl), Paragraph(v, val)] for l, v in fields],
+               colWidths=[W*0.38, W*0.62])
+    pt.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,-1), PANEL),
+        ("ROWBACKGROUNDS",(0,0),(-1,-1), [PANEL, PANEL2]),
+        ("BOX",           (0,0),(-1,-1), 0.5, BORDER),
+        ("INNERGRID",     (0,0),(-1,-1), 0.3, BORDER),
+        ("LEFTPADDING",   (0,0),(-1,-1), 10),
+        ("TOPPADDING",    (0,0),(-1,-1), 6),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 6),
+    ]))
+    story += [pt, Spacer(1, 12)]
+
+    # ── Factor breakdown ──
+    story.append(Paragraph("Factor Breakdown", h2))
+    frows = [[Paragraph("<b>Factor</b>", lbl), Paragraph("<b>Score</b>", lbl), Paragraph("<b>Status</b>", lbl)]]
+    for factor, score in prediction["factors"].items():
+        sc = GREEN if score >= 70 else GOLD if score >= 50 else RED
+        st_txt = "Strong" if score >= 70 else "Moderate" if score >= 50 else "Weak"
+        frows.append([
+            Paragraph(factor, body),
+            Paragraph(f"{score}%", S("fs", fontSize=10, textColor=sc, fontName="Helvetica-Bold")),
+            Paragraph(st_txt,      S("st", fontSize=9,  textColor=sc)),
+        ])
+    ft = Table(frows, colWidths=[W*0.4, W*0.25, W*0.35])
+    ft.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0),(-1,0),  ACC),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1), [PANEL, PANEL2]),
+        ("BOX",           (0,0),(-1,-1), 0.5, BORDER),
+        ("INNERGRID",     (0,0),(-1,-1), 0.3, BORDER),
+        ("LEFTPADDING",   (0,0),(-1,-1), 10),
+        ("TOPPADDING",    (0,0),(-1,-1), 6),
+        ("BOTTOMPADDING", (0,0),(-1,-1), 6),
+        ("TEXTCOLOR",     (0,0),(-1,0),  GOLD),
+    ]))
+    story += [ft, Spacer(1, 12)]
+
+    # ── Tips ──
+    if prediction.get("tips"):
+        story.append(Paragraph("Priority Improvements", h2))
+        for t in prediction["tips"]:
+            story.append(Paragraph(f"   {t}", tip))
+        story.append(Spacer(1, 8))
+
+    # ── Checklist ──
+    if checklist_data:
+        story.append(PageBreak())
+        story.append(Paragraph("Application Checklist", h2))
+        story.append(Paragraph("Track your progress across all target schools.", small))
+        story.append(Spacer(1, 8))
+        for school in checklist_data:
+            name     = school.get("name", "")
+            deadline = school.get("deadline", "—")
+            tasks    = school.get("tasks", {})
+            done     = sum(1 for v in tasks.values() if v)
+            total    = len(tasks)
+            pct_done = int((done / total) * 100) if total else 0
+            story.append(Paragraph(
+                f"<b>{name}</b>  ·  Deadline: {deadline}  ·  Progress: {done}/{total} ({pct_done}%)",
+                S("ch", fontSize=10, textColor=LIGHT, spaceBefore=6, spaceAfter=3)
+            ))
+            for task_name, done_flag in tasks.items():
+                mark = "✓" if done_flag else "○"
+                tc   = GREEN if done_flag else MUTED
+                story.append(Paragraph(
+                    f"   {mark}  {task_name}",
+                    S("tk", fontSize=9, textColor=LIGHT if done_flag else MUTED, spaceAfter=2)
+                ))
+            story.append(HRFlowable(width=W, thickness=0.5, color=BORDER, spaceAfter=6, spaceBefore=4))
+
+    # ── Roadmap ──
+    story.append(PageBreak())
+    story.append(Paragraph("Personalized Improvement Roadmap", h2))
+    roadmap = generate_roadmap(
+        academic.get("gre", 310), academic.get("cgpa", 7.5),
+        academic.get("toefl", 95), academic.get("sop_lor", 3),
+        academic.get("research", 0)
+    )
+    for phase in roadmap:
+        ph_tbl = Table(
+            [[Paragraph(f"{phase['icon']}  {phase['range']}  —  {phase['focus']}",
+                        S("ph", fontSize=10, textColor=GOLD, fontName="Helvetica-Bold"))]],
+            colWidths=[W]
+        )
+        ph_tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0),(-1,-1), ACC),
+            ("LEFTPADDING",   (0,0),(-1,-1), 10),
+            ("TOPPADDING",    (0,0),(-1,-1), 7),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 7),
+            ("BOX",           (0,0),(-1,-1), 0.5, colors.HexColor("#2e3650")),
+        ]))
+        story.append(ph_tbl)
+        for task in phase["tasks"]:
+            story.append(Paragraph(f"   •  {task}", body))
+        story.append(Paragraph(f"Goal: {phase['goal']}", small))
+        story.append(Spacer(1, 6))
+
+    # ── Footer ──
+    story += [
+        Spacer(1, 0.3*inch),
+        HRFlowable(width=W, thickness=0.5, color=MUTED, spaceAfter=6),
+        Paragraph("GradPath AI  ·  Predictions are probabilistic, not deterministic  ·  Not affiliated with any university", foot),
+    ]
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+# ═══════════════════════════════════════════════════════════
 # SIDEBAR
 # ═══════════════════════════════════════════════════════════
 with st.sidebar:
@@ -905,20 +1304,87 @@ with col_left:
     st.markdown('<h2 style="color:#e8e4dc">Academic Profile</h2>', unsafe_allow_html=True)
 
     with st.form("profile_form"):
-        gre = st.number_input("GRE Score (260–340)",   min_value=260, max_value=340, value=int(prefs.get("gre",  310)), step=1)
-        cgpa= st.number_input("CGPA (0.0–10.0)",        min_value=0.0, max_value=10.0,value=float(prefs.get("cgpa", 7.5)), step=0.1, format="%.1f")
-        toefl=st.number_input("TOEFL Score (0–120)",    min_value=0,   max_value=120, value=int(prefs.get("toefl",95)), step=1)
+        gre = st.number_input("GRE Score (260–340)", min_value=260, max_value=340, value=int(prefs.get("gre", 310)), step=1)
+
+        cgpa = st.number_input("CGPA (0.0–10.0)", min_value=0.0, max_value=10.0, value=float(prefs.get("cgpa", 7.5)), step=0.1, format="%.1f")
+
+        toefl = st.number_input("TOEFL Score (0–120)", min_value=0, max_value=120, value=int(prefs.get("toefl", 95)), step=1)
 
         st.markdown('<p style="color:#6b7080;font-size:0.82rem;margin-bottom:-0.6rem">SOP / LOR Combined Rating</p>', unsafe_allow_html=True)
         sop_lor = st.slider("", 1, 5, int(prefs.get("sop_lor", 3)), label_visibility="collapsed", key="sop_lor_slider")
 
-        research   = st.radio("Research Experience", [0, 1], index=int(prefs.get("research", 0)),
-                               format_func=lambda x: "Yes" if x else "No", horizontal=True)
+        research = st.radio("Research Experience", [0, 1], index=int(prefs.get("research", 0)),
+                            format_func=lambda x: "Yes" if x else "No", horizontal=True)
 
         st.markdown('<p style="color:#6b7080;font-size:0.82rem;margin-bottom:-0.6rem">Target University Rating</p>', unsafe_allow_html=True)
         uni_rating = st.slider("", 1, 5, int(prefs.get("uni_rating", 3)), label_visibility="collapsed", key="uni_rating_slider")
 
         submitted = st.form_submit_button("Run Prediction →", use_container_width=True)
+
+    # ── Score Guide expander — separate from the form ──
+    with st.expander("📖 What do these scores mean?", expanded=False):
+
+        st.markdown("**📝 GRE Score** *(range: 260–340)*")
+        st.markdown(
+            "The Graduate Record Examination — total of Verbal + Quantitative sections.\n\n"
+            "- 🔴 **260–299** = weak\n"
+            "- 🟠 **300–314** = average\n"
+            "- 🟡 **315–329** = competitive\n"
+            "- 🟢 **330–340** = exceptional\n\n"
+            "Most MS programs expect **310+**. Top programs like MIT and Stanford want **320+**."
+        )
+        st.divider()
+
+        st.markdown("**🎓 CGPA** *(range: 0.0–10.0)*")
+        st.markdown(
+            "Your Cumulative Grade Point Average on a **10-point scale** (standard in India and many countries).\n\n"
+            "On a 4.0 scale? Multiply by 2.5 to approximate — e.g. 3.5 GPA ≈ 8.75 CGPA.\n\n"
+            "- 🔴 **Below 7.0** = weak\n"
+            "- 🟠 **7.0–7.9** = average\n"
+            "- 🟡 **8.0–8.9** = strong\n"
+            "- 🟢 **9.0–10.0** = exceptional"
+        )
+        st.divider()
+
+        st.markdown("**🗣 TOEFL Score** *(range: 0–120)*")
+        st.markdown(
+            "Test of English as a Foreign Language — required for most non-native English speakers.\n\n"
+            "- 🔴 **Below 90** = below minimum for most programs\n"
+            "- 🟠 **90–99** = meets minimum cutoff\n"
+            "- 🟡 **100–109** = competitive\n"
+            "- 🟢 **110–120** = excellent\n\n"
+            "Native English speakers or students from English-medium universities may be exempt — enter **110** if your TOEFL was waived."
+        )
+        st.divider()
+
+        st.markdown("**✍️ SOP / LOR Combined Rating** *(1 = weak · 5 = exceptional)*")
+        st.markdown(
+            "A self-assessment of your **Statement of Purpose** (motivation essay) and **Letters of Recommendation** (references from professors or supervisors).\n\n"
+            "- 🔴 **1** = Generic drafts, unknown recommenders\n"
+            "- 🟠 **2** = Basic content, no standout moments\n"
+            "- 🟡 **3** = Solid, clear narrative\n"
+            "- 🟡 **4** = Strong, tailored to each school, senior recommenders\n"
+            "- 🟢 **5** = Outstanding SOP + research supervisor letters"
+        )
+        st.divider()
+
+        st.markdown("**🔬 Research Experience**")
+        st.markdown(
+            "Select **Yes** if you have at least one substantial research experience — a thesis, lab project, "
+            "internship with a research output, conference paper, or publication.\n\n"
+            "Research experience can add **+8–15%** to your predicted acceptance chance for competitive programs."
+        )
+        st.divider()
+
+        st.markdown("**🏛 Target University Rating** *(1 = easy admit · 5 = elite)*")
+        st.markdown(
+            "How selective are the universities you are primarily targeting?\n\n"
+            "- 🟢 **1** = Open / rolling admission — acceptance rate 60%+\n"
+            "- 🟡 **2** = Less selective — e.g. SUNY Buffalo, Wayne State (40–60%)\n"
+            "- 🟡 **3** = Moderate — e.g. Northeastern, ASU, Texas A&M (20–40%)\n"
+            "- 🟠 **4** = Highly selective — e.g. Georgia Tech, UCLA, Purdue (8–20%)\n"
+            "- 🔴 **5** = Elite — e.g. MIT, Stanford, CMU, UC Berkeley (below 8%)"
+        )
 
     if submitted:
         result = predict_admission(gre, cgpa, toefl, sop_lor, research, uni_rating)
@@ -1053,6 +1519,191 @@ if st.session_state.current_chat:
         file_name=f"gradpath_{st.session_state.user}_{datetime.date.today()}.json",
         mime="application/json"
     )
+
+# ═══════════════════════════════════════════════════════════
+# TOOLS SECTION — tabbed navigation
+# ═══════════════════════════════════════════════════════════
+st.divider()
+st.markdown('<h2 style="color:#e8e4dc">🛠 Planning Tools</h2>', unsafe_allow_html=True)
+st.markdown('<p class="muted">Everything you need to plan, track, and improve your applications — all in one place.</p>', unsafe_allow_html=True)
+
+tool_tab1, tool_tab2, tool_tab3 = st.tabs([
+    "🔍  University Comparison",
+    "✅  Application Checklist",
+    "🗺  Improvement Roadmap",
+])
+
+# ───────────────────────────────────────────
+# TAB 1 — UNIVERSITY COMPARISON
+# ───────────────────────────────────────────
+with tool_tab1:
+    st.markdown("#### Compare Your Profile to Any University")
+    st.caption("Enter up to 4 university names and see exactly how your scores compare to their average admitted student.")
+
+    acad_now = profiles[st.session_state.user].get("academic", {})
+    compare_gre   = acad_now.get("gre",      310)
+    compare_cgpa  = acad_now.get("cgpa",     7.5)
+    compare_toefl = acad_now.get("toefl",    95)
+    compare_res   = acad_now.get("research", 0)
+
+    uni_input_col1, uni_input_col2 = st.columns([3, 1])
+    with uni_input_col1:
+        uni_names_raw = st.text_input(
+            "University names (comma-separated)",
+            placeholder="e.g. MIT, Georgia Tech, Purdue, ASU",
+            key="uni_compare_input"
+        )
+    with uni_input_col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        run_compare = st.button("Compare →", key="run_compare_btn", use_container_width=True)
+
+    st.caption("Available: MIT, Stanford, Carnegie Mellon, UC Berkeley, Georgia Tech, UCLA, Columbia, NYU, Purdue, Northeastern, ASU, UT Dallas, Texas A&M, Penn State, Johns Hopkins, Caltech, SUNY Buffalo, Indiana University, UC San Diego, University of Michigan")
+
+    if run_compare and uni_names_raw.strip():
+        names   = [n.strip() for n in uni_names_raw.split(",") if n.strip()][:4]
+        results = [compare_university(n, compare_gre, compare_cgpa, compare_toefl, compare_res) for n in names]
+        found   = [(names[i], r) for i, r in enumerate(results) if r is not None]
+        missing = [names[i] for i, r in enumerate(results) if r is None]
+
+        if missing:
+            st.warning(f"Not found in database: {', '.join(missing)}")
+
+        if found:
+            compare_cols = st.columns(len(found))
+            for col, (orig_name, r) in zip(compare_cols, found):
+                with col:
+                    def gap_label(gap, unit=""):
+                        prefix = "+" if gap > 0 else ""
+                        return f"{prefix}{gap}{unit}"
+
+                    st.markdown(f"### 🏛 {r['name']}")
+                    st.caption(f"Rank ~#{r['rank']}  ·  Acceptance rate: {r['acceptance_rate']}%{'  ·  Research required' if r['research_req'] else ''}")
+                    st.markdown(f"**{r['verdict']}**")
+                    st.divider()
+                    st.metric(label=f"GRE  (avg: {r['gre_avg']})",    value=int(compare_gre),  delta=gap_label(r["gre_gap"],   " pts"))
+                    st.metric(label=f"CGPA  (avg: {r['cgpa_avg']})",   value=compare_cgpa,       delta=gap_label(r["cgpa_gap"]))
+                    st.metric(label=f"TOEFL  (avg: {r['toefl_avg']})", value=int(compare_toefl), delta=gap_label(r["toefl_gap"], " pts"))
+
+# ───────────────────────────────────────────
+# TAB 2 — APPLICATION CHECKLIST
+# ───────────────────────────────────────────
+with tool_tab2:
+    st.markdown("#### Application Checklist & Deadline Tracker")
+    st.caption("Add every school you are applying to, set a deadline, and tick off tasks as you complete them.")
+
+    user_cl = checklists.get(st.session_state.user, [])
+    DEFAULT_TASKS = ["SOP drafted", "SOP finalised", "LOR requested", "LOR submitted", "Transcripts ready", "Application form filled", "Application submitted"]
+
+    with st.expander("➕ Add a School", expanded=len(user_cl) == 0):
+        cl_col1, cl_col2, cl_col3 = st.columns([2, 1.5, 1])
+        with cl_col1:
+            new_school_name = st.text_input("School name", placeholder="e.g. Georgia Tech (CS)", key="cl_school_name")
+        with cl_col2:
+            new_school_deadline = st.text_input("Deadline", placeholder="e.g. Dec 15, 2025", key="cl_deadline")
+        with cl_col3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            add_school_btn = st.button("Add School", key="cl_add_btn", use_container_width=True)
+
+        if add_school_btn and new_school_name.strip():
+            entry = {
+                "name":     new_school_name.strip(),
+                "deadline": new_school_deadline.strip() or "—",
+                "tasks":    {t: False for t in DEFAULT_TASKS}
+            }
+            user_cl.append(entry)
+            checklists[st.session_state.user] = user_cl
+            save_json(CHECKLIST_FILE, checklists)
+            st.rerun()
+
+    if not user_cl:
+        st.info("No schools added yet. Use the form above to start tracking your applications.")
+    else:
+        for idx, school in enumerate(user_cl):
+            tasks    = school.get("tasks", {})
+            done     = sum(1 for v in tasks.values() if v)
+            total    = len(tasks)
+            pct_done = int((done / total) * 100) if total else 0
+
+            with st.expander(f"🏛 {school['name']}  ·  Deadline: {school['deadline']}  ·  {done}/{total} done", expanded=True):
+                st.progress(pct_done / 100, text=f"{pct_done}% complete")
+
+                task_cols = st.columns(2)
+                changed = False
+                for ti, (task_name, done_flag) in enumerate(tasks.items()):
+                    with task_cols[ti % 2]:
+                        new_val = st.checkbox(task_name, value=done_flag, key=f"cl_{idx}_{ti}")
+                        if new_val != done_flag:
+                            user_cl[idx]["tasks"][task_name] = new_val
+                            changed = True
+
+                if changed:
+                    checklists[st.session_state.user] = user_cl
+                    save_json(CHECKLIST_FILE, checklists)
+                    st.rerun()
+
+                if st.button(f"🗑 Remove {school['name']}", key=f"cl_remove_{idx}"):
+                    user_cl.pop(idx)
+                    checklists[st.session_state.user] = user_cl
+                    save_json(CHECKLIST_FILE, checklists)
+                    st.rerun()
+
+# ───────────────────────────────────────────
+# TAB 3 — IMPROVEMENT ROADMAP
+# ───────────────────────────────────────────
+with tool_tab3:
+    st.markdown("#### Your Personalized Week-by-Week Roadmap")
+    st.caption("A study and prep plan built around your weakest factors — no generic advice.")
+
+    roadmap_acad = profiles[st.session_state.user].get("academic", {})
+
+    if not roadmap_acad:
+        st.info("Run a prediction first to generate your personalized roadmap.")
+    else:
+        roadmap = generate_roadmap(
+            roadmap_acad.get("gre",      310),
+            roadmap_acad.get("cgpa",     7.5),
+            roadmap_acad.get("toefl",    95),
+            roadmap_acad.get("sop_lor",  3),
+            roadmap_acad.get("research", 0),
+        )
+
+        for phase in roadmap:
+            with st.expander(f"{phase['icon']}  {phase['range']}  —  {phase['focus']}", expanded=True):
+                st.caption(f"🎯 Goal: {phase['goal']}")
+                for task in phase["tasks"]:
+                    st.markdown(f"- {task}")
+
+# ═══════════════════════════════════════════════════════════
+# ── NEW FEATURE 4: PDF REPORT DOWNLOAD ──
+# ═══════════════════════════════════════════════════════════
+st.divider()
+
+st.markdown('<h2 style="color:#e8e4dc">📄 Download Your Full Report (PDF)</h2>', unsafe_allow_html=True)
+st.markdown('<p class="muted">Export a polished PDF summarising your prediction, factor breakdown, checklist, and improvement roadmap — share it with an advisor.</p>', unsafe_allow_html=True)
+
+pdf_pred = st.session_state.last_prediction
+pdf_acad = profiles[st.session_state.user].get("academic", {})
+
+if not pdf_pred or not pdf_acad:
+    st.markdown('<div class="warn-box">⚡ Run a prediction first to enable the PDF export.</div>', unsafe_allow_html=True)
+else:
+    if st.button("📄 Generate & Download PDF Report", key="pdf_generate_btn", use_container_width=False):
+        with st.spinner("Generating your report…"):
+            cl_for_pdf = checklists.get(st.session_state.user, [])
+            pdf_bytes  = generate_pdf_report(
+                st.session_state.user,
+                pdf_pred,
+                pdf_acad,
+                cl_for_pdf if cl_for_pdf else None
+            )
+        st.download_button(
+            label="⬇️ Download PDF",
+            data=pdf_bytes,
+            file_name=f"gradpath_report_{st.session_state.user}_{datetime.date.today()}.pdf",
+            mime="application/pdf",
+            key="pdf_download_btn"
+        )
+        st.markdown('<div class="info-box">✅ Report ready! Click <b>Download PDF</b> above to save it.</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════
 # EXPLORE PROGRAMS, MAJORS & APPLICATION GUIDE
