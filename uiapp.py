@@ -802,26 +802,61 @@ _startup_model, _startup_scaler = load_or_train_model()
 # ── NEW FEATURE 1: UNIVERSITY COMPARISON DATABASE ──
 # ═══════════════════════════════════════════════════════════
 UNIVERSITY_PROFILES = {
-    "MIT": {"gre": 330, "cgpa": 9.5, "toefl": 113, "acceptance_rate": 4, "research_req": True, "rank": 1},
-    "Stanford": {"gre": 328, "cgpa": 9.3, "toefl": 112, "acceptance_rate": 5, "research_req": True, "rank": 2},
-    "Carnegie Mellon": {"gre": 325, "cgpa": 9.0, "toefl": 110, "acceptance_rate": 10, "research_req": True, "rank": 3},
-    "UC Berkeley": {"gre": 327, "cgpa": 9.2, "toefl": 110, "acceptance_rate": 7, "research_req": True, "rank": 4},
-    "Georgia Tech": {"gre": 320, "cgpa": 8.7, "toefl": 105, "acceptance_rate": 18, "research_req": False, "rank": 5},
-    "UCLA": {"gre": 319, "cgpa": 8.8, "toefl": 106, "acceptance_rate": 16, "research_req": False, "rank": 6},
+    # ── Elite ──
+    "MIT":                    {"gre": 330, "cgpa": 9.5, "toefl": 113, "acceptance_rate": 4,  "research_req": True,  "rank": 1},
+    "Stanford":               {"gre": 328, "cgpa": 9.3, "toefl": 112, "acceptance_rate": 5,  "research_req": True,  "rank": 2},
+    "Carnegie Mellon":        {"gre": 325, "cgpa": 9.0, "toefl": 110, "acceptance_rate": 10, "research_req": True,  "rank": 3},
+    "UC Berkeley":            {"gre": 327, "cgpa": 9.2, "toefl": 110, "acceptance_rate": 7,  "research_req": True,  "rank": 4},
+    "Caltech":                {"gre": 331, "cgpa": 9.6, "toefl": 114, "acceptance_rate": 3,  "research_req": True,  "rank": 1},
+    "Princeton":              {"gre": 329, "cgpa": 9.4, "toefl": 111, "acceptance_rate": 5,  "research_req": True,  "rank": 2},
+    "Harvard":                {"gre": 328, "cgpa": 9.3, "toefl": 111, "acceptance_rate": 6,  "research_req": True,  "rank": 3},
+    "Johns Hopkins":          {"gre": 323, "cgpa": 9.0, "toefl": 109, "acceptance_rate": 11, "research_req": True,  "rank": 9},
+    # ── Highly Selective ──
+    "UCLA":                   {"gre": 319, "cgpa": 8.8, "toefl": 106, "acceptance_rate": 16, "research_req": False, "rank": 6},
+    "Columbia":               {"gre": 322, "cgpa": 8.9, "toefl": 108, "acceptance_rate": 12, "research_req": False, "rank": 8},
     "University of Michigan": {"gre": 318, "cgpa": 8.6, "toefl": 104, "acceptance_rate": 20, "research_req": False, "rank": 7},
-    "Columbia": {"gre": 322, "cgpa": 8.9, "toefl": 108, "acceptance_rate": 12, "research_req": False, "rank": 8},
-    "NYU": {"gre": 315, "cgpa": 8.5, "toefl": 105, "acceptance_rate": 22, "research_req": False, "rank": 10},
-    "Purdue": {"gre": 314, "cgpa": 8.2, "toefl": 100, "acceptance_rate": 28, "research_req": False, "rank": 12},
-    "UC San Diego": {"gre": 316, "cgpa": 8.4, "toefl": 103, "acceptance_rate": 24, "research_req": False, "rank": 11},
-    "Northeastern": {"gre": 310, "cgpa": 8.0, "toefl": 98, "acceptance_rate": 35, "research_req": False, "rank": 18},
-    "ASU": {"gre": 307, "cgpa": 7.8, "toefl": 95, "acceptance_rate": 48, "research_req": False, "rank": 25},
-    "UT Dallas": {"gre": 308, "cgpa": 7.9, "toefl": 96, "acceptance_rate": 45, "research_req": False, "rank": 23},
-    "Texas A&M": {"gre": 312, "cgpa": 8.1, "toefl": 99, "acceptance_rate": 32, "research_req": False, "rank": 15},
-    "Penn State": {"gre": 311, "cgpa": 8.0, "toefl": 98, "acceptance_rate": 33, "research_req": False, "rank": 16},
-    "Johns Hopkins": {"gre": 323, "cgpa": 9.0, "toefl": 109, "acceptance_rate": 11, "research_req": True, "rank": 9},
-    "Caltech": {"gre": 331, "cgpa": 9.6, "toefl": 114, "acceptance_rate": 3, "research_req": True, "rank": 1},
-    "SUNY Buffalo": {"gre": 304, "cgpa": 7.5, "toefl": 92, "acceptance_rate": 58, "research_req": False, "rank": 32},
-    "Indiana University": {"gre": 306, "cgpa": 7.7, "toefl": 93, "acceptance_rate": 52, "research_req": False, "rank": 28},
+    "Georgia Tech":           {"gre": 320, "cgpa": 8.7, "toefl": 105, "acceptance_rate": 18, "research_req": False, "rank": 5},
+    "Cornell":                {"gre": 321, "cgpa": 8.8, "toefl": 107, "acceptance_rate": 14, "research_req": False, "rank": 7},
+    "UC San Diego":           {"gre": 316, "cgpa": 8.4, "toefl": 103, "acceptance_rate": 24, "research_req": False, "rank": 11},
+    "NYU":                    {"gre": 315, "cgpa": 8.5, "toefl": 105, "acceptance_rate": 22, "research_req": False, "rank": 10},
+    "Northwestern":           {"gre": 320, "cgpa": 8.8, "toefl": 107, "acceptance_rate": 13, "research_req": False, "rank": 8},
+    "Duke":                   {"gre": 318, "cgpa": 8.7, "toefl": 105, "acceptance_rate": 15, "research_req": False, "rank": 9},
+    "Yale":                   {"gre": 324, "cgpa": 9.1, "toefl": 110, "acceptance_rate": 8,  "research_req": True,  "rank": 5},
+    "UPenn":                  {"gre": 319, "cgpa": 8.7, "toefl": 106, "acceptance_rate": 14, "research_req": False, "rank": 8},
+    "Rice":                   {"gre": 316, "cgpa": 8.5, "toefl": 103, "acceptance_rate": 18, "research_req": False, "rank": 10},
+    "UIUC":                   {"gre": 317, "cgpa": 8.5, "toefl": 103, "acceptance_rate": 20, "research_req": False, "rank": 10},
+    "University of Washington": {"gre": 316, "cgpa": 8.4, "toefl": 102, "acceptance_rate": 22, "research_req": False, "rank": 11},
+    # ── Moderately Selective ──
+    "Purdue":                 {"gre": 314, "cgpa": 8.2, "toefl": 100, "acceptance_rate": 28, "research_req": False, "rank": 12},
+    "Texas A&M":              {"gre": 312, "cgpa": 8.1, "toefl": 99,  "acceptance_rate": 32, "research_req": False, "rank": 15},
+    "Penn State":             {"gre": 311, "cgpa": 8.0, "toefl": 98,  "acceptance_rate": 33, "research_req": False, "rank": 16},
+    "Ohio State":             {"gre": 310, "cgpa": 8.0, "toefl": 97,  "acceptance_rate": 35, "research_req": False, "rank": 17},
+    "University of Wisconsin": {"gre": 313, "cgpa": 8.2, "toefl": 100, "acceptance_rate": 30, "research_req": False, "rank": 14},
+    "University of Minnesota": {"gre": 311, "cgpa": 8.0, "toefl": 98,  "acceptance_rate": 34, "research_req": False, "rank": 16},
+    "Virginia Tech":          {"gre": 309, "cgpa": 7.9, "toefl": 97,  "acceptance_rate": 38, "research_req": False, "rank": 20},
+    "NC State":               {"gre": 308, "cgpa": 7.8, "toefl": 96,  "acceptance_rate": 40, "research_req": False, "rank": 22},
+    "University of Florida":  {"gre": 309, "cgpa": 7.9, "toefl": 96,  "acceptance_rate": 38, "research_req": False, "rank": 21},
+    "Northeastern":           {"gre": 310, "cgpa": 8.0, "toefl": 98,  "acceptance_rate": 35, "research_req": False, "rank": 18},
+    "Boston University":      {"gre": 308, "cgpa": 7.9, "toefl": 96,  "acceptance_rate": 40, "research_req": False, "rank": 22},
+    "Rutgers":                {"gre": 307, "cgpa": 7.8, "toefl": 95,  "acceptance_rate": 42, "research_req": False, "rank": 24},
+    "UT Austin":              {"gre": 315, "cgpa": 8.3, "toefl": 100, "acceptance_rate": 25, "research_req": False, "rank": 12},
+    # ── Less Selective ──
+    "ASU":                    {"gre": 307, "cgpa": 7.8, "toefl": 95,  "acceptance_rate": 48, "research_req": False, "rank": 25},
+    "UT Dallas":              {"gre": 308, "cgpa": 7.9, "toefl": 96,  "acceptance_rate": 45, "research_req": False, "rank": 23},
+    "Stevens Institute":      {"gre": 306, "cgpa": 7.7, "toefl": 94,  "acceptance_rate": 48, "research_req": False, "rank": 26},
+    "Drexel":                 {"gre": 305, "cgpa": 7.7, "toefl": 93,  "acceptance_rate": 50, "research_req": False, "rank": 27},
+    "University of Colorado": {"gre": 308, "cgpa": 7.8, "toefl": 95,  "acceptance_rate": 45, "research_req": False, "rank": 24},
+    "University of Arizona":  {"gre": 306, "cgpa": 7.7, "toefl": 93,  "acceptance_rate": 50, "research_req": False, "rank": 27},
+    "SUNY Stony Brook":       {"gre": 307, "cgpa": 7.8, "toefl": 94,  "acceptance_rate": 47, "research_req": False, "rank": 25},
+    "Indiana University":     {"gre": 306, "cgpa": 7.7, "toefl": 93,  "acceptance_rate": 52, "research_req": False, "rank": 28},
+    "SUNY Buffalo":           {"gre": 304, "cgpa": 7.5, "toefl": 92,  "acceptance_rate": 58, "research_req": False, "rank": 32},
+    "Wayne State":            {"gre": 302, "cgpa": 7.3, "toefl": 90,  "acceptance_rate": 62, "research_req": False, "rank": 36},
+    "UMass Amherst":          {"gre": 309, "cgpa": 7.9, "toefl": 96,  "acceptance_rate": 40, "research_req": False, "rank": 21},
+    "UMass Lowell":           {"gre": 303, "cgpa": 7.4, "toefl": 91,  "acceptance_rate": 60, "research_req": False, "rank": 34},
+    "DePaul":                 {"gre": 300, "cgpa": 7.2, "toefl": 89,  "acceptance_rate": 65, "research_req": False, "rank": 38},
+    "Pace University":        {"gre": 298, "cgpa": 7.0, "toefl": 87,  "acceptance_rate": 70, "research_req": False, "rank": 42},
+    "Wichita State":          {"gre": 295, "cgpa": 6.8, "toefl": 84,  "acceptance_rate": 78, "research_req": False, "rank": 50},
+    "Harrisburg University":  {"gre": 293, "cgpa": 6.6, "toefl": 82,  "acceptance_rate": 82, "research_req": False, "rank": 55},
 }
 
 def compare_university(uni_name: str, gre: float, cgpa: float, toefl: float, research: int) -> dict | None:
@@ -1557,7 +1592,7 @@ with tool_tab1:
         st.markdown("<br>", unsafe_allow_html=True)
         run_compare = st.button("Compare →", key="run_compare_btn", use_container_width=True)
 
-    st.caption("Available: MIT, Stanford, Carnegie Mellon, UC Berkeley, Georgia Tech, UCLA, Columbia, NYU, Purdue, Northeastern, ASU, UT Dallas, Texas A&M, Penn State, Johns Hopkins, Caltech, SUNY Buffalo, Indiana University, UC San Diego, University of Michigan")
+    st.caption("Available: MIT, Stanford, Carnegie Mellon, UC Berkeley, Caltech, Princeton, Harvard, Yale, Johns Hopkins, Cornell, Northwestern, Duke, UPenn, Rice, UCLA, Columbia, University of Michigan, Georgia Tech, UIUC, University of Washington, NYU, UC San Diego, UT Austin, Purdue, Texas A&M, Penn State, Ohio State, University of Wisconsin, University of Minnesota, Virginia Tech, NC State, University of Florida, Northeastern, Boston University, Rutgers, UMass Amherst, ASU, UT Dallas, Stevens Institute, Drexel, University of Colorado, University of Arizona, SUNY Stony Brook, Indiana University, SUNY Buffalo, Wayne State, UMass Lowell, DePaul, Pace University, Wichita State, Harrisburg University")
 
     if run_compare and uni_names_raw.strip():
         names   = [n.strip() for n in uni_names_raw.split(",") if n.strip()][:4]
@@ -1599,15 +1634,16 @@ with tool_tab2:
         with cl_col1:
             new_school_name = st.text_input("School name", placeholder="e.g. Georgia Tech (CS)", key="cl_school_name")
         with cl_col2:
-            new_school_deadline = st.text_input("Deadline", placeholder="e.g. Dec 15, 2025", key="cl_deadline")
+            new_school_deadline = st.date_input("Application deadline", value=None, min_value=datetime.date.today(), key="cl_deadline", format="MM/DD/YYYY")
         with cl_col3:
             st.markdown("<br>", unsafe_allow_html=True)
             add_school_btn = st.button("Add School", key="cl_add_btn", use_container_width=True)
 
         if add_school_btn and new_school_name.strip():
+            deadline_str = new_school_deadline.strftime("%b %d, %Y") if new_school_deadline else "—"
             entry = {
                 "name":     new_school_name.strip(),
-                "deadline": new_school_deadline.strip() or "—",
+                "deadline": deadline_str,
                 "tasks":    {t: False for t in DEFAULT_TASKS}
             }
             user_cl.append(entry)
@@ -1818,14 +1854,14 @@ tabs = st.tabs(tab_labels)
 for tab, label in zip(tabs, tab_labels):
     prog = PROGRAM_DATA[label]
     with tab:
+        # ── Description banner ──
+        st.markdown(f'<div class="grad-card"><p style="color:#a8b8d8;font-size:0.95rem;margin:0">{prog["description"]}</p></div>', unsafe_allow_html=True)
+
         col_a, col_b = st.columns([1.1, 1], gap="large")
 
         with col_a:
-            # Description
-            st.markdown(f'<div class="grad-card"><p style="color:#a8b8d8;font-size:0.95rem">{prog["description"]}</p></div>', unsafe_allow_html=True)
-
             # Majors
-            st.markdown('<p style="font-weight:600;color:#c9a84c;margin-bottom:0.4rem">Available Majors</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-weight:600;color:#c9a84c;margin-bottom:0.4rem">🎓 Available Majors</p>', unsafe_allow_html=True)
             majors_html = "".join(
                 f'<span style="display:inline-block;background:#1e2230;border:1px solid #2e3248;'
                 f'border-radius:20px;padding:0.25rem 0.75rem;margin:0.2rem;font-size:0.82rem;color:#e8e4dc">{m}</span>'
@@ -1834,7 +1870,7 @@ for tab, label in zip(tabs, tab_labels):
             st.markdown(f'<div style="margin-bottom:1rem">{majors_html}</div>', unsafe_allow_html=True)
 
             # Careers
-            st.markdown('<p style="font-weight:600;color:#c9a84c;margin-bottom:0.4rem">Career Paths</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-weight:600;color:#c9a84c;margin-bottom:0.4rem">💼 Career Paths</p>', unsafe_allow_html=True)
             careers_html = "".join(
                 f'<span style="display:inline-block;background:#1a2218;border:1px solid #2e4830;'
                 f'border-radius:20px;padding:0.25rem 0.75rem;margin:0.2rem;font-size:0.82rem;color:#7ecb8f">{c}</span>'
@@ -1845,27 +1881,40 @@ for tab, label in zip(tabs, tab_labels):
             # Profile requirements
             st.markdown(f"""
             <div class="grad-card" style="margin-top:0.5rem">
-                <p style="font-weight:600;color:#c9a84c;margin-bottom:0.5rem">Typical Profile Requirements</p>
-                <p style="font-size:0.88rem;color:#a0a8c0;margin:0.2rem 0">📝 GRE Score: <b style="color:#e8e4dc">{prog["avg_gre"]}</b></p>
-                <p style="font-size:0.88rem;color:#a0a8c0;margin:0.2rem 0">🎓 CGPA: <b style="color:#e8e4dc">{prog["avg_cgpa"]}</b></p>
-                <p style="font-size:0.88rem;color:#a0a8c0;margin:0.2rem 0">📅 Timeline: <b style="color:#e8e4dc">{prog["timeline"]}</b></p>
+                <p style="font-weight:600;color:#c9a84c;margin-bottom:0.6rem">📋 Typical Profile Requirements</p>
+                <p style="font-size:0.88rem;color:#a0a8c0;margin:0.35rem 0">📝 &nbsp;<b style="color:#6b7080">GRE Score</b> &nbsp; <b style="color:#e8e4dc">{prog["avg_gre"]}</b></p>
+                <p style="font-size:0.88rem;color:#a0a8c0;margin:0.35rem 0">🎓 &nbsp;<b style="color:#6b7080">CGPA</b> &nbsp; <b style="color:#e8e4dc">{prog["avg_cgpa"]}</b></p>
+                <p style="font-size:0.88rem;color:#a0a8c0;margin:0.35rem 0">📅 &nbsp;<b style="color:#6b7080">Timeline</b> &nbsp; <b style="color:#e8e4dc">{prog["timeline"]}</b></p>
             </div>
             """, unsafe_allow_html=True)
 
         with col_b:
             # Top schools
-            st.markdown('<p style="font-weight:600;color:#c9a84c;margin-bottom:0.4rem">Top Schools</p>', unsafe_allow_html=True)
-            for school in prog["top_schools"]:
-                st.markdown(f'<p style="font-size:0.88rem;color:#e8e4dc;margin:0.15rem 0">🏛 {school}</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-weight:600;color:#c9a84c;margin-bottom:0.5rem">🏛 Top Schools</p>', unsafe_allow_html=True)
+            schools_html = "".join(
+                f'<div style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.6rem;margin-bottom:0.3rem;'
+                f'background:#181c26;border:1px solid #252834;border-radius:8px">'
+                f'<span style="color:#c9a84c;font-size:0.9rem">🏛</span>'
+                f'<span style="font-size:0.88rem;color:#e8e4dc">{s}</span></div>'
+                for s in prog["top_schools"]
+            )
+            st.markdown(f'<div style="margin-bottom:1rem">{schools_html}</div>', unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # Application tips
-            st.markdown('<p style="font-weight:600;color:#c9a84c;margin-bottom:0.4rem">How to Apply — Key Tips</p>', unsafe_allow_html=True)
-            st.markdown('<div class="grad-card-accent">', unsafe_allow_html=True)
-            for i, tip in enumerate(prog["application_tips"], 1):
-                st.markdown(f'<p style="font-size:0.85rem;color:#c8c4bc;margin:0.4rem 0"><b style="color:#c9a84c">{i}.</b> {tip}</p>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            # Application tips — all inside one card
+            tips_rows = "".join(
+                f'<div style="display:flex;gap:0.6rem;align-items:flex-start;padding:0.5rem 0;'
+                f'border-bottom:1px solid #2a2d38">'
+                f'<span style="color:#c9a84c;font-weight:700;font-size:0.9rem;min-width:1.2rem">{i}.</span>'
+                f'<span style="font-size:0.84rem;color:#c8c4bc;line-height:1.5">{tip}</span>'
+                f'</div>'
+                for i, tip in enumerate(prog["application_tips"], 1)
+            )
+            st.markdown(f"""
+            <div class="grad-card-accent">
+                <p style="font-weight:600;color:#c9a84c;margin-bottom:0.5rem">💡 How to Apply — Key Tips</p>
+                {tips_rows}
+            </div>
+            """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
 # FOOTER
