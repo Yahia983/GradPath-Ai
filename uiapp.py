@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import json
 import os
 import datetime
@@ -8,9 +9,15 @@ import math
 import pandas as pd
 import numpy as np
 import pickle
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import (
+    GradientBoostingRegressor,
+    RandomForestRegressor,
+    ExtraTreesRegressor,
+    StackingRegressor,
+)
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import RidgeCV
 from sklearn.metrics import mean_absolute_error
 
 # ─────────────────────────────────────────────
@@ -195,8 +202,867 @@ hr { border-color: #252834 !important; }
     color: #c8b87a;
     margin: 0.6rem 0;
 }
+
+/* ─────────────────────────────────────────────
+   3D SCENERY ENHANCEMENTS
+   - Let the WebGL starfield/constellation behind
+     the app show through translucent panels
+   - Add real 3D depth (perspective tilt + glass)
+     to existing cards without changing markup
+───────────────────────────────────────────── */
+
+/* Allow the fixed 3D canvas (injected into the page body) to show through */
+.stApp {
+    background: rgba(13, 15, 20, 0.78) !important;
+}
+[data-testid="stSidebar"] {
+    background: rgba(19, 22, 30, 0.82) !important;
+    backdrop-filter: blur(6px);
+}
+[data-testid="stHeader"] {
+    background: rgba(13, 15, 20, 0) !important;
+}
+
+/* Glass + 3D tilt for cards */
+.grad-card,
+.grad-card-accent,
+[data-testid="stChatMessage"],
+.streamlit-expanderHeader,
+.stMetric {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transform-style: preserve-3d;
+    transition: transform 0.35s cubic-bezier(.2,.8,.2,1), box-shadow 0.35s ease, border-color 0.35s ease;
+    will-change: transform;
+}
+.grad-card:hover,
+.grad-card-accent:hover {
+    transform: perspective(900px) rotateX(2.5deg) rotateY(-2.5deg) translateY(-5px) translateZ(6px);
+    box-shadow: 0 22px 45px rgba(0,0,0,0.45), 0 0 28px rgba(201,168,76,0.10);
+    border-color: #3a3f55;
+}
+
+/* Score badge — 3D pop-in + gentle floating glow */
+@keyframes grad-badge-pop {
+    0%   { transform: scale(0.6) rotateY(75deg); opacity: 0; }
+    60%  { transform: scale(1.05) rotateY(-8deg); opacity: 1; }
+    100% { transform: scale(1) rotateY(0deg); opacity: 1; }
+}
+@keyframes grad-badge-float {
+    0%, 100% { transform: translateY(0) rotateZ(0deg); box-shadow: 0 8px 24px rgba(201,168,76,0.25); }
+    50%      { transform: translateY(-4px) rotateZ(0.6deg); box-shadow: 0 16px 36px rgba(201,168,76,0.38); }
+}
+.score-badge {
+    animation: grad-badge-pop 0.7s cubic-bezier(.2,.8,.2,1) both,
+               grad-badge-float 4.5s ease-in-out 0.7s infinite;
+    transform-style: preserve-3d;
+}
+
+/* Subtle gold "stardust" drift across info/warn boxes */
+@keyframes grad-shimmer {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+}
+.warn-box, .info-box {
+    background-image: linear-gradient(120deg, rgba(201,168,76,0.0) 0%, rgba(201,168,76,0.08) 45%, rgba(201,168,76,0.0) 90%);
+    background-size: 200% 100%;
+    animation: grad-shimmer 6s linear infinite;
+}
+
+/* ─────────────────────────────────────────────
+   EXTRA DESIGN & INTERACTIVITY PASS
+   Purely visual/behavioral polish layered on top
+   of the existing look — no structural changes.
+───────────────────────────────────────────── */
+
+/* Custom gradient scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0d0f14; }
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #c9a84c, #4a90d9);
+    border-radius: 10px;
+    border: 2px solid #0d0f14;
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #e0bf6a, #6fb0f0); }
+
+/* Cursor-reactive ambient glow that follows the mouse across the whole app */
+#grad-cursor-glow {
+    position: fixed;
+    top: 0; left: 0;
+    width: 480px; height: 480px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(circle, rgba(201,168,76,0.10) 0%, rgba(74,144,217,0.05) 45%, rgba(0,0,0,0) 72%);
+    transform: translate(-9999px, -9999px);
+    transition: transform 0.06s linear, opacity 0.4s ease;
+    mix-blend-mode: screen;
+}
+
+/* Headings — animated gold underline sweep on hover */
+h1, h2, h3 { position: relative; }
+h2::after {
+    content: "";
+    display: block;
+    width: 0%;
+    height: 2px;
+    margin-top: 4px;
+    background: linear-gradient(90deg, #c9a84c, transparent);
+    transition: width 0.5s cubic-bezier(.2,.8,.2,1);
+}
+h2:hover::after { width: 38%; }
+
+/* Buttons — magnetic 3D press + shine sweep */
+.stButton > button {
+    position: relative;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transition: transform 0.18s cubic-bezier(.2,.8,.2,1), box-shadow 0.18s ease, background 0.2s ease !important;
+}
+.stButton > button::before {
+    content: "";
+    position: absolute;
+    top: 0; left: -60%;
+    width: 40%; height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.55), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.55s ease;
+    pointer-events: none;
+}
+.stButton > button:hover::before { left: 130%; }
+.stButton > button:active {
+    transform: perspective(400px) translateZ(-3px) scale(0.97) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+}
+
+/* Tabs — lift + glow on hover, 3D active indicator */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+}
+.stTabs [data-baseweb="tab"] {
+    background: #181c26 !important;
+    border-radius: 8px 8px 0 0 !important;
+    border: 1px solid #252834 !important;
+    border-bottom: none !important;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, color 0.25s ease !important;
+    transform-style: preserve-3d;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    transform: translateY(-3px) perspective(600px) rotateX(6deg);
+    box-shadow: 0 8px 18px rgba(201,168,76,0.15);
+}
+.stTabs [aria-selected="true"] {
+    box-shadow: 0 -2px 0 0 #c9a84c inset;
+}
+
+/* Expander — 3D chevron rotation + hover lift */
+.streamlit-expanderHeader {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease !important;
+}
+.streamlit-expanderHeader:hover {
+    transform: perspective(700px) rotateX(1.5deg) translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    border-color: #c9a84c !important;
+}
+
+/* Text inputs / number inputs / sliders — focus glow ring with depth */
+.stTextInput input:focus,
+.stNumberInput input:focus,
+.stTextArea textarea:focus {
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.22), 0 4px 14px rgba(0,0,0,0.35) !important;
+    border-color: #c9a84c !important;
+    transform: translateZ(2px);
+}
+.stSlider [role="slider"] {
+    box-shadow: 0 0 0 4px rgba(201,168,76,0.18), 0 2px 8px rgba(0,0,0,0.4) !important;
+    transition: box-shadow 0.2s ease, transform 0.2s ease !important;
+}
+.stSlider [role="slider"]:hover { transform: scale(1.15); }
+
+/* Chat input — glowing focus bar */
+[data-testid="stChatInput"] {
+    transition: box-shadow 0.3s ease;
+    border-radius: 10px;
+}
+[data-testid="stChatInput"]:focus-within {
+    box-shadow: 0 0 0 2px rgba(201,168,76,0.35), 0 8px 26px rgba(201,168,76,0.12);
+}
+
+/* Chat message entrance — 3D swing-in */
+@keyframes grad-msg-in {
+    0%   { opacity: 0; transform: perspective(800px) rotateX(-12deg) translateY(14px); }
+    100% { opacity: 1; transform: perspective(800px) rotateX(0deg) translateY(0); }
+}
+[data-testid="stChatMessage"] {
+    animation: grad-msg-in 0.45s cubic-bezier(.2,.8,.2,1) both;
+}
+
+/* Landing-page feature cards — full 3D flip-lift on hover (targets inline style cards) */
+div[style*="width:220px"] {
+    transition: transform 0.45s cubic-bezier(.2,.8,.2,1), box-shadow 0.45s ease !important;
+    transform-style: preserve-3d;
+    cursor: default;
+}
+div[style*="width:220px"]:hover {
+    transform: perspective(1000px) rotateY(8deg) rotateX(4deg) translateY(-8px) scale(1.03) !important;
+    box-shadow: -12px 22px 40px rgba(0,0,0,0.5), 0 0 30px rgba(201,168,76,0.15) !important;
+}
+
+/* Metric widgets — subtle 3D pop */
+.stMetric {
+    transition: transform 0.3s cubic-bezier(.2,.8,.2,1), box-shadow 0.3s ease;
+}
+.stMetric:hover {
+    transform: perspective(700px) rotateX(3deg) translateY(-3px);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.4);
+}
+
+/* Progress bars — animated gold gradient fill */
+.stProgress > div > div {
+    background: linear-gradient(90deg, #c9a84c, #e0bf6a, #c9a84c) !important;
+    background-size: 200% 100% !important;
+    animation: grad-shimmer 3s linear infinite !important;
+}
+
+/* Checkbox — pop on check */
+.stCheckbox label span {
+    transition: transform 0.2s cubic-bezier(.34,1.56,.64,1);
+}
+.stCheckbox input:checked + span,
+.stCheckbox [data-checked="true"] {
+    transform: scale(1.12);
+}
+
+/* Radio pills — 3D depth on selected */
+[data-testid="stRadio"] label {
+    transition: transform 0.2s ease;
+}
+[data-testid="stRadio"] label:hover { transform: translateY(-1px); }
+
+/* Divider — animated gold shimmer line instead of flat hr */
+hr {
+    background: linear-gradient(90deg, transparent, #c9a84c, transparent) !important;
+    height: 1px !important;
+    border: none !important;
+    opacity: 0.5;
+}
+
+/* Score badge — parallax-reactive sheen overlay */
+.score-badge {
+    position: relative;
+    overflow: hidden;
+}
+.score-badge::after {
+    content: "";
+    position: absolute;
+    top: -50%; left: -60%;
+    width: 40%; height: 200%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.5), transparent);
+    transform: rotate(20deg);
+    animation: grad-badge-sheen 3.2s ease-in-out infinite;
+}
+@keyframes grad-badge-sheen {
+    0%   { left: -60%; }
+    45%  { left: 130%; }
+    100% { left: 130%; }
+}
+
+/* ─────────────────────────────────────────────
+   HOLOGRAPHIC "POP-OUT" TREATMENT
+   Makes key panels feel like they're projected
+   above the page surface — scanlines, chromatic
+   rim glow, and a floating drop-shadow that
+   reads as depth toward the viewer.
+───────────────────────────────────────────── */
+
+@keyframes grad-holo-scan {
+    0%   { background-position: 0 -100%; }
+    100% { background-position: 0 200%; }
+}
+@keyframes grad-holo-flicker {
+    0%, 100% { opacity: 1; }
+    92%      { opacity: 1; }
+    93%      { opacity: 0.82; }
+    94%      { opacity: 1; }
+    97%      { opacity: 0.9; }
+}
+@keyframes grad-holo-hover {
+    0%, 100% { transform: perspective(1000px) rotateX(4deg) translateY(0) translateZ(18px); }
+    50%      { transform: perspective(1000px) rotateX(4deg) translateY(-9px) translateZ(26px); }
+}
+
+/* Score badge becomes a projected holographic readout */
+.score-badge {
+    background: linear-gradient(135deg, #c9a84c, #e0bf6a) !important;
+    box-shadow:
+        0 0 0 1px rgba(201,168,76,0.5),
+        0 -1px 0 rgba(74,144,217,0.6),
+        0 1px 0 rgba(224,80,80,0.35),
+        0 30px 55px -10px rgba(0,0,0,0.65),
+        0 0 40px rgba(201,168,76,0.35) !important;
+    animation: grad-badge-pop 0.7s cubic-bezier(.2,.8,.2,1) both,
+               grad-holo-hover 5s ease-in-out 0.7s infinite,
+               grad-holo-flicker 7s linear infinite !important;
+}
+.score-badge::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(13,15,20,0.10) 0px,
+        rgba(13,15,20,0.10) 1px,
+        transparent 2px,
+        transparent 4px
+    );
+    background-size: 100% 200%;
+    animation: grad-holo-scan 2.6s linear infinite;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+}
+
+/* Accent cards read as holographic panels floating above the surface */
+.grad-card-accent {
+    position: relative;
+    transform: perspective(1000px) translateZ(0);
+}
+.grad-card-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(74,144,217,0.05) 0px,
+        rgba(74,144,217,0.05) 1px,
+        transparent 3px,
+        transparent 6px
+    );
+    background-size: 100% 220%;
+    animation: grad-holo-scan 3.4s linear infinite;
+    pointer-events: none;
+}
+.grad-card-accent::after {
+    content: "";
+    position: absolute;
+    left: 6%; right: 6%; bottom: -14px;
+    height: 22px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(201,168,76,0.28) 0%, transparent 75%);
+    filter: blur(3px);
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+.grad-card-accent:hover {
+    transform: perspective(1000px) rotateX(3deg) rotateY(-3deg) translateY(-10px) translateZ(30px) !important;
+    box-shadow:
+        0 -1px 0 rgba(74,144,217,0.5),
+        0 1px 0 rgba(224,80,80,0.30),
+        0 40px 70px -12px rgba(0,0,0,0.7),
+        0 0 45px rgba(201,168,76,0.22) !important;
+    border-color: #c9a84c !important;
+}
+
+/* Regular cards get a subtler chromatic rim + lift-toward-viewer on hover */
+.grad-card:hover {
+    box-shadow:
+        0 22px 45px rgba(0,0,0,0.45),
+        -1px 0 0 rgba(224,80,80,0.25),
+        1px 0 0 rgba(74,144,217,0.25),
+        0 0 28px rgba(201,168,76,0.12) !important;
+}
+
+/* Chat bubbles get a faint holographic edge + scan sweep */
+[data-testid="stChatMessage"] {
+    position: relative;
+}
+[data-testid="stChatMessage"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(201,168,76,0.03) 0px,
+        rgba(201,168,76,0.03) 1px,
+        transparent 3px,
+        transparent 7px
+    );
+    background-size: 100% 240%;
+    animation: grad-holo-scan 4s linear infinite;
+    pointer-events: none;
+}
+
+/* Global holographic vertical sweep across the entire app — very faint, reads as a projector refresh */
+body::after {
+    content: "";
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(74,144,217,0.35), rgba(201,168,76,0.35), transparent);
+    z-index: 999999;
+    pointer-events: none;
+    animation: grad-holo-sweep 9s linear infinite;
+    opacity: 0.55;
+}
+@keyframes grad-holo-sweep {
+    0%   { top: -3px; }
+    100% { top: 100vh; }
+}
 </style>
 """, unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+# 3D SCENERY  —  WebGL starfield + drifting "GradPath" constellation
+# Injected once into the page background (behind all content),
+# fully decorative, doesn't alter any app structure or logic.
+# ─────────────────────────────────────────────
+_GRADPATH_3D_BG = r"""
+<div id="gradpath-3d-holder" style="width:0;height:0;overflow:hidden"></div>
+<div id="grad-cursor-glow"></div>
+<script>
+(function () {
+    // ── Cursor-reactive ambient glow (lightweight, pure DOM/CSS) ──
+    function initCursorGlow(doc, win) {
+        var glow = doc.getElementById('grad-cursor-glow');
+        if (!glow || glow.dataset.gradBound === '1') return;
+        glow.dataset.gradBound = '1';
+        win.addEventListener('mousemove', function (e) {
+            glow.style.transform = 'translate(' + (e.clientX - 240) + 'px,' + (e.clientY - 240) + 'px)';
+        });
+        win.addEventListener('mouseleave', function () {
+            glow.style.transform = 'translate(-9999px, -9999px)';
+        });
+    }
+
+    function buildScene(doc, win) {
+        if (doc.getElementById('gradpath-3d-bg')) return;
+
+        var canvas = doc.createElement('canvas');
+        canvas.id = 'gradpath-3d-bg';
+        canvas.style.position = 'fixed';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.width = '100vw';
+        canvas.style.height = '100vh';
+        canvas.style.zIndex = '-1';
+        canvas.style.pointerEvents = 'none';
+        canvas.style.display = 'block';
+        doc.body.appendChild(canvas);
+
+        var THREE = win.THREE;
+        var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+        renderer.setPixelRatio(Math.min(win.devicePixelRatio || 1, 2));
+        renderer.setSize(win.innerWidth, win.innerHeight);
+
+        var scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera(58, win.innerWidth / win.innerHeight, 0.1, 1000);
+        camera.position.z = 55;
+
+        // ── Starfield (gold + soft blue, academic "night sky") ──
+        var starCount = 900;
+        var positions = new Float32Array(starCount * 3);
+        var colors = new Float32Array(starCount * 3);
+        for (var i = 0; i < starCount; i++) {
+            positions[i * 3]     = (Math.random() - 0.5) * 320;
+            positions[i * 3 + 1] = (Math.random() - 0.5) * 320;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 320;
+            if (Math.random() > 0.72) {
+                colors[i * 3] = 0.79; colors[i * 3 + 1] = 0.66; colors[i * 3 + 2] = 0.30; // gold
+            } else {
+                colors[i * 3] = 0.55; colors[i * 3 + 1] = 0.58; colors[i * 3 + 2] = 0.70; // soft blue-grey
+            }
+        }
+        var starGeo = new THREE.BufferGeometry();
+        starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        var starMat = new THREE.PointsMaterial({ size: 0.55, vertexColors: true, transparent: true, opacity: 0.85 });
+        var stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        // ── Gold wireframe icosahedron — "diploma seal / globe of opportunity" ──
+        var icoGeo = new THREE.IcosahedronGeometry(13, 1);
+        var icoMat = new THREE.MeshBasicMaterial({ color: 0xc9a84c, wireframe: true, transparent: true, opacity: 0.22 });
+        var ico = new THREE.Mesh(icoGeo, icoMat);
+        ico.position.set(26, 9, -35);
+        scene.add(ico);
+
+        // ── Blue torus — orbiting "campus ring" ──
+        var torusGeo = new THREE.TorusGeometry(7.5, 0.35, 16, 60);
+        var torusMat = new THREE.MeshBasicMaterial({ color: 0x4a90d9, wireframe: true, transparent: true, opacity: 0.16 });
+        var torus = new THREE.Mesh(torusGeo, torusMat);
+        torus.position.set(-29, -11, -22);
+        scene.add(torus);
+
+        // ── "GradPath" — a winding line of glowing nodes from bottom-left to top-right ──
+        var pathPoints = [];
+        for (var p = 0; p <= 10; p++) {
+            var t = p / 10;
+            pathPoints.push(new THREE.Vector3(
+                -60 + t * 120 + Math.sin(t * Math.PI * 1.5) * 10,
+                -35 + t * 70 + Math.cos(t * Math.PI) * 6,
+                -50 + t * 20
+            ));
+        }
+        var pathCurve = new THREE.CatmullRomCurve3(pathPoints);
+        var pathGeo = new THREE.TubeGeometry(pathCurve, 64, 0.18, 6, false);
+        var pathMat = new THREE.MeshBasicMaterial({ color: 0xc9a84c, transparent: true, opacity: 0.20 });
+        var pathMesh = new THREE.Mesh(pathGeo, pathMat);
+        scene.add(pathMesh);
+
+        var nodeGeo = new THREE.SphereGeometry(0.55, 12, 12);
+        var nodeMat = new THREE.MeshBasicMaterial({ color: 0xe0bf6a, transparent: true, opacity: 0.55 });
+        var nodes = [];
+        pathPoints.forEach(function (pt) {
+            var node = new THREE.Mesh(nodeGeo, nodeMat);
+            node.position.copy(pt);
+            scene.add(node);
+            nodes.push(node);
+        });
+
+        // ── Constellation links — faint lines connecting nearby stars for a "network" feel ──
+        var linkPositions = [];
+        var linkSampleCount = 140;
+        for (var li = 0; li < linkSampleCount; li++) {
+            var a = Math.floor(Math.random() * starCount);
+            var b = Math.floor(Math.random() * starCount);
+            var ax = positions[a * 3], ay = positions[a * 3 + 1], az = positions[a * 3 + 2];
+            var bx = positions[b * 3], by = positions[b * 3 + 1], bz = positions[b * 3 + 2];
+            var dist = Math.sqrt((ax-bx)*(ax-bx) + (ay-by)*(ay-by) + (az-bz)*(az-bz));
+            if (dist < 26) {
+                linkPositions.push(ax, ay, az, bx, by, bz);
+            }
+        }
+        var linkGeo = new THREE.BufferGeometry();
+        linkGeo.setAttribute('position', new THREE.Float32BufferAttribute(linkPositions, 3));
+        var linkMat = new THREE.LineBasicMaterial({ color: 0x4a90d9, transparent: true, opacity: 0.09 });
+        var links = new THREE.LineSegments(linkGeo, linkMat);
+        scene.add(links);
+
+        // ── Floating "graduation cap" — simple primitive composition (board + button + tassel) ──
+        var capGroup = new THREE.Group();
+        var boardGeo = new THREE.BoxGeometry(6, 0.35, 6);
+        var boardMat = new THREE.MeshBasicMaterial({ color: 0x181c26, transparent: true, opacity: 0.55 });
+        var board = new THREE.Mesh(boardGeo, boardMat);
+        capGroup.add(board);
+
+        var boardEdges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(boardGeo),
+            new THREE.LineBasicMaterial({ color: 0xc9a84c, transparent: true, opacity: 0.6 })
+        );
+        capGroup.add(boardEdges);
+
+        var domeGeo = new THREE.SphereGeometry(1.6, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+        var domeMat = new THREE.MeshBasicMaterial({ color: 0x181c26, wireframe: true, transparent: true, opacity: 0.4 });
+        var dome = new THREE.Mesh(domeGeo, domeMat);
+        dome.position.y = 0.18;
+        capGroup.add(dome);
+
+        var buttonGeo = new THREE.SphereGeometry(0.22, 8, 8);
+        var buttonMat = new THREE.MeshBasicMaterial({ color: 0xc9a84c, transparent: true, opacity: 0.8 });
+        var button = new THREE.Mesh(buttonGeo, buttonMat);
+        button.position.y = 0.2;
+        capGroup.add(button);
+
+        var tasselCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0, 0.2, 0),
+            new THREE.Vector3(2.4, -0.4, 0.4),
+            new THREE.Vector3(2.9, -2.4, 0.6),
+        ]);
+        var tasselGeo = new THREE.TubeGeometry(tasselCurve, 20, 0.06, 6, false);
+        var tasselMat = new THREE.MeshBasicMaterial({ color: 0xc9a84c, transparent: true, opacity: 0.7 });
+        var tassel = new THREE.Mesh(tasselGeo, tasselMat);
+        capGroup.add(tassel);
+
+        capGroup.position.set(-14, 22, -30);
+        capGroup.rotation.x = 0.3;
+        scene.add(capGroup);
+
+        // ── Additional floating gem shapes for depth/parallax layering ──
+        var gems = [];
+        var gemDefs = [
+            { geo: new THREE.OctahedronGeometry(2.2, 0), color: 0xc9a84c, pos: [42, -22, -18] },
+            { geo: new THREE.TetrahedronGeometry(2.6, 0), color: 0x4a90d9, pos: [-40, 24, -40] },
+            { geo: new THREE.DodecahedronGeometry(1.9, 0), color: 0xe0bf6a, pos: [8, -30, -28] },
+        ];
+        gemDefs.forEach(function (def) {
+            var mat = new THREE.MeshBasicMaterial({ color: def.color, wireframe: true, transparent: true, opacity: 0.24 });
+            var mesh = new THREE.Mesh(def.geo, mat);
+            mesh.position.set(def.pos[0], def.pos[1], def.pos[2]);
+            scene.add(mesh);
+            gems.push(mesh);
+        });
+
+        // ── HOLOGRAM PROJECTOR — a glowing base ring with a translucent light
+        //    cone rising from it, plus concentric scan-rings drifting upward,
+        //    reading like a classic sci-fi holographic projection. ──
+        var holoGroup = new THREE.Group();
+        holoGroup.position.set(20, -14, -12);
+
+        var holoBaseGeo = new THREE.RingGeometry(2.6, 3.0, 48);
+        var holoBaseMat = new THREE.MeshBasicMaterial({
+            color: 0x4a90d9, transparent: true, opacity: 0.55,
+            side: THREE.DoubleSide, blending: THREE.AdditiveBlending
+        });
+        var holoBase = new THREE.Mesh(holoBaseGeo, holoBaseMat);
+        holoBase.rotation.x = -Math.PI / 2;
+        holoGroup.add(holoBase);
+
+        var holoConeGeo = new THREE.ConeGeometry(2.7, 11, 32, 1, true);
+        var holoConeMat = new THREE.MeshBasicMaterial({
+            color: 0xc9a84c, transparent: true, opacity: 0.055,
+            side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        var holoCone = new THREE.Mesh(holoConeGeo, holoConeMat);
+        holoCone.position.y = 5.5;
+        holoGroup.add(holoCone);
+
+        // Concentric scan-rings that drift up through the beam like a hologram refresh
+        var scanRings = [];
+        for (var sr = 0; sr < 4; sr++) {
+            var scanGeo = new THREE.RingGeometry(1.4, 1.55, 40);
+            var scanMat = new THREE.MeshBasicMaterial({
+                color: 0xe0bf6a, transparent: true, opacity: 0.5,
+                side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            var scanRing = new THREE.Mesh(scanGeo, scanMat);
+            scanRing.rotation.x = -Math.PI / 2;
+            scanRing.userData.offset = sr / 4;
+            holoGroup.add(scanRing);
+            scanRings.push(scanRing);
+        }
+        scene.add(holoGroup);
+
+        // ── Orbiting HUD rings around the graduation cap — reads as a scanner halo ──
+        var hudRings = [];
+        var hudRingDefs = [
+            { r: 3.6, color: 0xc9a84c, tilt: [1.1, 0, 0] },
+            { r: 4.3, color: 0x4a90d9, tilt: [0, 0.9, 0.4] },
+            { r: 5.0, color: 0xe0bf6a, tilt: [0.6, 0.6, 0] },
+        ];
+        hudRingDefs.forEach(function (def) {
+            var g = new THREE.RingGeometry(def.r, def.r + 0.06, 64);
+            var m = new THREE.MeshBasicMaterial({
+                color: def.color, transparent: true, opacity: 0.28,
+                side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            var ring = new THREE.Mesh(g, m);
+            ring.rotation.set(def.tilt[0], def.tilt[1], def.tilt[2]);
+            capGroup.add(ring);
+            hudRings.push(ring);
+        });
+
+        // ── Floating holographic "data panels" — thin wireframe grid planes that
+        //    hover in space like projected HUD readouts, each with a soft glow face ──
+        var holoPanels = [];
+        var panelDefs = [
+            { pos: [-34, 6, -18], size: [9, 6], color: 0x4a90d9 },
+            { pos: [34, 18, -30], size: [7, 5], color: 0xc9a84c },
+        ];
+        panelDefs.forEach(function (def) {
+            var group = new THREE.Group();
+
+            var faceGeo = new THREE.PlaneGeometry(def.size[0], def.size[1]);
+            var faceMat = new THREE.MeshBasicMaterial({
+                color: def.color, transparent: true, opacity: 0.045,
+                side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            var face = new THREE.Mesh(faceGeo, faceMat);
+            group.add(face);
+
+            var gridGeo = new THREE.PlaneGeometry(def.size[0], def.size[1], 6, 4);
+            var gridWire = new THREE.LineSegments(
+                new THREE.WireframeGeometry(gridGeo),
+                new THREE.LineBasicMaterial({ color: def.color, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending })
+            );
+            group.add(gridWire);
+
+            var borderGeo = new THREE.EdgesGeometry(faceGeo);
+            var border = new THREE.LineSegments(
+                borderGeo,
+                new THREE.LineBasicMaterial({ color: def.color, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending })
+            );
+            group.add(border);
+
+            group.position.set(def.pos[0], def.pos[1], def.pos[2]);
+            scene.add(group);
+            holoPanels.push(group);
+        });
+
+        // ── Click-triggered gold particle burst ──
+        var bursts = [];
+        function spawnBurst(worldPos) {
+            var count = 40;
+            var geo = new THREE.BufferGeometry();
+            var pos = new Float32Array(count * 3);
+            var vel = [];
+            for (var i = 0; i < count; i++) {
+                pos[i*3] = worldPos.x; pos[i*3+1] = worldPos.y; pos[i*3+2] = worldPos.z;
+                vel.push(new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.6,
+                    (Math.random() - 0.5) * 0.6,
+                    (Math.random() - 0.5) * 0.6
+                ));
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            var mat = new THREE.PointsMaterial({ color: 0xe0bf6a, size: 0.5, transparent: true, opacity: 1 });
+            var pts = new THREE.Points(geo, mat);
+            scene.add(pts);
+            bursts.push({ points: pts, vel: vel, life: 0 });
+        }
+        win.addEventListener('click', function (e) {
+            var vec = new THREE.Vector3(
+                (e.clientX / win.innerWidth) * 2 - 1,
+                -(e.clientY / win.innerHeight) * 2 + 1,
+                0.5
+            );
+            vec.unproject(camera);
+            var dir = vec.sub(camera.position).normalize();
+            var dist = 40;
+            var pos = camera.position.clone().add(dir.multiplyScalar(dist));
+            spawnBurst(pos);
+        });
+
+        // ── Mouse parallax ──
+        var mouseX = 0, mouseY = 0;
+        win.addEventListener('mousemove', function (e) {
+            mouseX = (e.clientX / win.innerWidth - 0.5);
+            mouseY = (e.clientY / win.innerHeight - 0.5);
+        });
+
+        // ── Scroll-linked camera drift for a subtle parallax-on-scroll feel ──
+        var scrollT = 0;
+        function bindScroll() {
+            var scroller = doc.querySelector('section.main') || doc.scrollingElement || doc.body;
+            function onScroll() {
+                var max = (scroller.scrollHeight - scroller.clientHeight) || 1;
+                scrollT = Math.min(1, Math.max(0, scroller.scrollTop / max));
+            }
+            scroller.addEventListener('scroll', onScroll, { passive: true });
+        }
+        try { bindScroll(); } catch (e) {}
+
+        var clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            var t = clock.getElapsedTime();
+
+            stars.rotation.y += 0.0006;
+            stars.rotation.x += 0.0002;
+            links.rotation.y += 0.0006;
+            links.rotation.x += 0.0002;
+
+            ico.rotation.x += 0.0025;
+            ico.rotation.y += 0.0035;
+
+            torus.rotation.x += 0.0020;
+            torus.rotation.y -= 0.0018;
+
+            capGroup.rotation.y += 0.0028;
+            capGroup.position.y = 22 + Math.sin(t * 0.6) * 1.6;
+
+            gems.forEach(function (g, gi) {
+                g.rotation.x += 0.002 + gi * 0.0006;
+                g.rotation.y += 0.0025 + gi * 0.0004;
+                g.position.y += Math.sin(t * 0.5 + gi) * 0.01;
+            });
+
+            // ── Hologram projector: base pulses, cone shimmers, scan-rings rise through the beam ──
+            holoBase.material.opacity = 0.4 + 0.25 * Math.sin(t * 2.2);
+            holoBase.scale.setScalar(1 + 0.04 * Math.sin(t * 2.2));
+            holoCone.material.opacity = 0.04 + 0.03 * Math.sin(t * 1.4);
+            scanRings.forEach(function (ring) {
+                var cycle = ((t * 0.18 + ring.userData.offset) % 1);
+                ring.position.y = cycle * 11;
+                ring.scale.setScalar(0.6 + cycle * 1.1);
+                ring.material.opacity = 0.55 * (1 - cycle);
+            });
+            holoGroup.rotation.y += 0.003;
+
+            // ── HUD scanner rings orbiting the graduation cap, each on its own axis ──
+            hudRings.forEach(function (ring, ri) {
+                ring.rotation.z += 0.004 + ri * 0.0015;
+                ring.material.opacity = 0.18 + 0.14 * Math.sin(t * 1.6 + ri * 1.3);
+            });
+
+            // ── Floating holographic data panels — gentle bob + slow yaw, like projected HUDs ──
+            holoPanels.forEach(function (panel, pi) {
+                panel.rotation.y = Math.sin(t * 0.25 + pi) * 0.35;
+                panel.position.y += Math.sin(t * 0.4 + pi * 2) * 0.006;
+            });
+
+            nodes.forEach(function (node, idx) {
+                node.scale.setScalar(1 + 0.25 * Math.sin(t * 1.5 + idx * 0.6));
+            });
+
+            // Animate + retire particle bursts
+            for (var bi = bursts.length - 1; bi >= 0; bi--) {
+                var b = bursts[bi];
+                var arr = b.points.geometry.attributes.position.array;
+                for (var pi = 0; pi < b.vel.length; pi++) {
+                    arr[pi*3]   += b.vel[pi].x;
+                    arr[pi*3+1] += b.vel[pi].y - 0.01;
+                    arr[pi*3+2] += b.vel[pi].z;
+                }
+                b.points.geometry.attributes.position.needsUpdate = true;
+                b.life += 0.02;
+                b.points.material.opacity = Math.max(0, 1 - b.life);
+                if (b.life >= 1) {
+                    scene.remove(b.points);
+                    bursts.splice(bi, 1);
+                }
+            }
+
+            camera.position.x += (mouseX * 10 - camera.position.x) * 0.02;
+            camera.position.y += (-mouseY * 10 - 6 * scrollT - camera.position.y) * 0.02;
+            camera.fov = 58 + scrollT * 4;
+            camera.updateProjectionMatrix();
+            camera.lookAt(scene.position);
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        win.addEventListener('resize', function () {
+            renderer.setSize(win.innerWidth, win.innerHeight);
+            camera.aspect = win.innerWidth / win.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+    }
+
+    function init() {
+        try {
+            var targetWin = (window.parent && window.parent !== window) ? window.parent : window;
+            var targetDoc = targetWin.document;
+
+            initCursorGlow(targetDoc, targetWin);
+
+            if (targetWin.THREE) {
+                buildScene(targetDoc, targetWin);
+                return;
+            }
+            var script = targetDoc.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.128.0/three.min.js';
+            script.onload = function () { buildScene(targetDoc, targetWin); };
+            targetDoc.head.appendChild(script);
+        } catch (err) {
+            // Cross-origin fallback: render confined to this component's iframe
+            initCursorGlow(document, window);
+            if (window.THREE) {
+                buildScene(document, window);
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.128.0/three.min.js';
+            s.onload = function () { buildScene(document, window); };
+            document.head.appendChild(s);
+        }
+    }
+    init();
+})();
+</script>
+"""
+components.html(_GRADPATH_3D_BG, height=0, width=0)
 
 # ─────────────────────────────────────────────
 # FILE STORAGE
@@ -285,6 +1151,36 @@ def _find_dataset():
 DATASET_PATH = _find_dataset()
 FEATURE_COLS = ["GRE Score", "TOEFL Score", "University Rating", "SOP", "LOR", "CGPA", "Research"]
 
+# ── Engineered feature set for the upgraded ensemble model ──
+# Built on top of the same 7 raw inputs — adds interaction terms and a
+# composite "academic index" so the model can pick up on combined-factor
+# signal (e.g. a high GRE paired with a high CGPA is stronger evidence
+# than either alone).
+ENGINEERED_FEATURE_NAMES = FEATURE_COLS + [
+    "GRE_CGPA_interaction", "TOEFL_CGPA_interaction", "SOPLOR_avg", "Academic_Index"
+]
+
+def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Derive extra signal features on top of the 7 raw admission factors.
+
+    Used identically at training time and at prediction time so the
+    feature space the model sees always matches.
+    """
+    out = df.copy()
+    gre_n      = (out["GRE Score"]   - 260) / 80.0
+    toefl_n    =  out["TOEFL Score"] / 120.0
+    cgpa_n     =  out["CGPA"]        / 10.0
+    soplor_avg = (out["SOP"] + out["LOR"]) / 2.0
+
+    out["GRE_CGPA_interaction"]   = gre_n * cgpa_n
+    out["TOEFL_CGPA_interaction"] = toefl_n * cgpa_n
+    out["SOPLOR_avg"]             = soplor_avg
+    out["Academic_Index"] = (
+        gre_n * 0.30 + toefl_n * 0.15 + cgpa_n * 0.30 +
+        (soplor_avg / 5.0) * 0.15 + out["Research"].astype(float) * 0.10
+    )
+    return out[ENGINEERED_FEATURE_NAMES]
+
 @st.cache_resource(show_spinner="Training model on your dataset…")
 def load_or_train_model():
     os.makedirs("model", exist_ok=True)
@@ -295,14 +1191,22 @@ def load_or_train_model():
     print(f"  Scaler exists? : {os.path.exists(SCALER_PATH)}")
     print("=" * 50)
 
-    # ── Already trained — load from disk ──
+    expected_features = len(ENGINEERED_FEATURE_NAMES)
+
+    # ── Already trained — load from disk if it matches the current feature set ──
     if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
-        print("✅ Pre-trained model found — loading from disk (skipping training)")
-        with open(MODEL_PATH,  "rb") as f: model  = pickle.load(f)
-        with open(SCALER_PATH, "rb") as f: scaler = pickle.load(f)
-        print("✅ Model loaded successfully!")
-        print("=" * 50)
-        return model, scaler
+        try:
+            with open(MODEL_PATH,  "rb") as f: cached_model  = pickle.load(f)
+            with open(SCALER_PATH, "rb") as f: cached_scaler = pickle.load(f)
+
+            if getattr(cached_scaler, "n_features_in_", None) == expected_features:
+                print("✅ Pre-trained model found — loading from disk (skipping training)")
+                print("=" * 50)
+                return cached_model, cached_scaler
+            else:
+                print("⚠ Cached model uses an outdated feature set — retraining with the upgraded pipeline...")
+        except Exception as e:
+            print(f"⚠ Could not load cached model ({e}) — retraining...")
 
     # ── Load all datasets from model/ folder ──
     dfs = []
@@ -337,30 +1241,60 @@ def load_or_train_model():
         print("=" * 50)
         return None, None
 
-    X = df[FEATURE_COLS].astype(float)
+    X = engineer_features(df[FEATURE_COLS].astype(float))
     y = df[target].astype(float)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
     print(f"✅ Split — {len(X_train)} training rows, {len(X_test)} test rows")
+    print(f"✅ Feature set ({expected_features} features): {ENGINEERED_FEATURE_NAMES}")
 
     scaler = StandardScaler()
     X_train_s = scaler.fit_transform(X_train)
     X_test_s  = scaler.transform(X_test)
 
-    print("🧠 Training GradientBoostingRegressor — please wait...")
-    model = GradientBoostingRegressor(
-        n_estimators=500, learning_rate=0.03,
-        max_depth=4, subsample=0.8,
-        random_state=42
+    print("🧠 Training advanced stacked ensemble (Gradient Boosting + Random Forest + Extra Trees, "
+          "blended by a Ridge meta-learner)...")
+
+    base_estimators = [
+        ("gbr", GradientBoostingRegressor(
+            n_estimators=600, learning_rate=0.02, max_depth=3,
+            subsample=0.85, random_state=42
+        )),
+        ("rf", RandomForestRegressor(
+            n_estimators=400, max_depth=9, min_samples_leaf=2,
+            random_state=42, n_jobs=-1
+        )),
+        ("etr", ExtraTreesRegressor(
+            n_estimators=400, max_depth=11, min_samples_leaf=2,
+            random_state=42, n_jobs=-1
+        )),
+    ]
+
+    model = StackingRegressor(
+        estimators=base_estimators,
+        final_estimator=RidgeCV(alphas=np.logspace(-3, 3, 13)),
+        passthrough=True,
+        cv=5,
+        n_jobs=-1,
     )
     model.fit(X_train_s, y_train)
 
     mae = mean_absolute_error(y_test, model.predict(X_test_s))
     pct_mae = round(mae * 100, 2)
+
+    try:
+        cv_scores = cross_val_score(model, X_train_s, y_train, cv=5, scoring="neg_mean_absolute_error")
+        cv_pct_mae = round(-cv_scores.mean() * 100, 2)
+    except Exception as e:
+        cv_pct_mae = None
+        print(f"⚠ Cross-validation diagnostic skipped: {e}")
+
     print(f"✅ Training complete!")
-    print(f"   MAE: {round(mae, 4)} = ~{pct_mae}% average error (lower is better)")
+    print(f"   Hold-out MAE: {round(mae, 4)} = ~{pct_mae}% average error (lower is better)")
+    if cv_pct_mae is not None:
+        print(f"   5-fold CV MAE: ~{cv_pct_mae}% average error")
 
     with open(MODEL_PATH,  "wb") as f: pickle.dump(model,  f)
     with open(SCALER_PATH, "wb") as f: pickle.dump(scaler, f)
@@ -392,7 +1326,13 @@ def predict_admission(gre: float, cgpa: float, toefl: float,
     else:
         # Feature order MUST match FEATURE_COLS exactly:
         # ["GRE Score","TOEFL Score","University Rating","SOP","LOR","CGPA","Research"]
-        features   = np.array([[gre, toefl, uni_rating, sop_lor, sop_lor, cgpa, research]], dtype=float)
+        # then passed through engineer_features() so the model sees the same
+        # interaction / composite-index columns it was trained on.
+        raw_df = pd.DataFrame([{
+            "GRE Score": gre, "TOEFL Score": toefl, "University Rating": uni_rating,
+            "SOP": sop_lor, "LOR": sop_lor, "CGPA": cgpa, "Research": research,
+        }])
+        features   = engineer_features(raw_df).to_numpy(dtype=float)
         features_s = scaler.transform(features)
         raw  = float(model.predict(features_s)[0])
         prob = max(0.02, min(0.98, raw))
